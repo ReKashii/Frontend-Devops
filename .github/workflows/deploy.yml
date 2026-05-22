@@ -1,0 +1,50 @@
+name: Pipeline CI/CD Innovatech
+
+# 1. Trigger: Se ejecuta SOLO al hacer push a la rama 'deploy' según la pauta
+on:
+  push:
+    branches:
+      - deploy
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Paso A: Descargar el código fuente del repositorio
+      - name: Checkout del código
+        uses: actions/checkout@v3
+
+      # Paso B: Autenticarse en el registro de contenedores (Docker Hub)
+      - name: Login en Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Paso C: Construir la imagen Docker y publicarla (Push)
+      - name: Build y Push de la imagen Docker
+        run: |
+          # Reemplaza 'backend-ventas' con el nombre que corresponda a tu microservicio
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/backend-ventas:latest .
+          docker push ${{ secrets.DOCKER_USERNAME }}/backend-ventas:latest
+
+      # Paso D: Conectarse por SSH a la instancia EC2 y actualizar el contenedor
+      - name: Despliegue en EC2
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ec2-user
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            # Ir a la carpeta donde tienes tu archivo docker-compose.yml en la EC2
+            cd /home/ec2-user/innovatech
+            
+            # Descargar la imagen más reciente que acabamos de subir a Docker Hub
+            docker-compose pull backend-ventas
+            
+            # Recrear y levantar SOLO el contenedor actualizado, sin apagar la base de datos ni otros servicios
+            docker-compose up -d --no-deps backend-ventas
+            
+            # Limpiar imágenes antiguas para liberar espacio en la EC2 (Opcional pero recomendado)
+            docker image prune -f
