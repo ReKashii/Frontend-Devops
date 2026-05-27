@@ -3,7 +3,7 @@ name: CI/CD Frontend AWS
 on:
   push:
     branches:
-      - deploy # O main, dependiendo de la rama que uses
+      - main # O main, dependiendo de la rama que uses
 
 jobs:
   deploy:
